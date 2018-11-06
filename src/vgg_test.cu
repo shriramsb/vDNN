@@ -112,16 +112,20 @@ void printComputationTransferTimes(vector<vector<float> > &fwd_times, vector<vec
 int main(int argc, char *argv[]) {
 
 	
+	// Allocate space in memory and read images
 	float *f_train_images, *f_test_images;
 	int *f_train_labels, *f_test_labels;
 	int rows = 224, cols = 224, channels = 3;
 	int input_size = rows * cols * channels;
-	// f_train_images = (float *)malloc(num_train * input_size * sizeof(float));
-	// f_train_labels = (int *)malloc(num_train * sizeof(int));
 	checkCudaErrors(cudaMallocHost(&f_train_images, num_train * input_size * sizeof(float)));
 	checkCudaErrors(cudaMallocHost(&f_train_labels, num_train * sizeof(int)));
 	f_test_images = (float *)malloc(num_test * input_size * sizeof(float));
 	f_test_labels = (int *)malloc(num_test * sizeof(int));
+
+	// read images here
+	// ...
+	// ...
+	// ...
 
 	float *mean_image;
 	mean_image = (float *)malloc(input_size * sizeof(float));
@@ -149,7 +153,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	
-	// VGG
+	// VGG specification
+	// Look at user_iface.h for function declaration to initialize values
 	vector<LayerSpecifier> layer_specifier;
 	{
 		ConvDescriptor part0_conv0;
@@ -329,12 +334,14 @@ int main(int argc, char *argv[]) {
 		layer_specifier.push_back(temp);
 	}
 
+
+	// reading command line input
+	// argv[1] - vDNN scheme - dyn, all, conv, alternate_conv, argv[2] - performance_optimal or memory_optimal
 	vDNNConvAlgo vdnn_conv_algo = vDNN_PERFORMANCE_OPTIMAL;
 	vDNNType vdnn_type = vDNN_DYN;
 	string filename("vdnn_dyn");
 	if (argc == 3) {
 		filename.assign("vdnn");
-		// argv[1] - layers to offload, argv[2] - conv algo to use
 		if (strcmp(argv[1], "dyn") == 0) {
 			vdnn_type = vDNN_DYN;
 			filename.append("_dyn");
@@ -371,20 +378,24 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+
 	int batch_size = 64;
 	long long dropout_seed = 1;
 	float softmax_eps = 1e-8;
 	float init_std_dev = 0.1;
+	// instantiating network object
 	NeuralNet net(layer_specifier, DATA_FLOAT, batch_size, TENSOR_NCHW, dropout_seed, softmax_eps, init_std_dev, vdnn_type, vdnn_conv_algo, SGD);
 
 	int num_epoch = 1000;
 	double learning_rate = 1e-3;
 	double learning_rate_decay = 0.9;
 	
+	// solver, which takes a network object and runs SGD on it
 	Solver solver(&net, (void *)f_train_images, f_train_labels, (void *)f_train_images, f_train_labels, num_epoch, SGD, learning_rate, learning_rate_decay, num_train, num_train);
 	vector<float> loss;
 	vector<float> time;
 	vector<vector<float> > fwd_vdnn_lag, bwd_vdnn_lag;
+	// trains for given number of steps (here 100). and gets computation/transfer times of each layer for each iteration
 	solver.getTrainTime(loss, time, 100, fwd_vdnn_lag, bwd_vdnn_lag);
 	printTimes(time, filename);
 	printvDNNLag(fwd_vdnn_lag, bwd_vdnn_lag, filename);
